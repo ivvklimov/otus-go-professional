@@ -1,4 +1,4 @@
-module github.com/ivvklimov/otus-go-professional/tree/master/hw01_hello_otus
+module github.com/ivvklimov/otus-go-professional/hw01_hello_otus
 
 go 1.23.0
 
