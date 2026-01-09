@@ -80,3 +80,115 @@ func TestTop10(t *testing.T) {
 		}
 	})
 }
+
+func TestTop10Custom(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: []string{},
+		},
+		{
+			name:     "single word",
+			input:    "hello",
+			expected: []string{"hello"},
+		},
+		{
+			name:     "example from assignment",
+			input:    "cat and dog, one dog,two cats and one man",
+			expected: []string{"and", "one", "cat", "cats", "dog,", "dog,two", "man"},
+		},
+		{
+			name:     "multiple same frequency",
+			input:    "b b b a a a c c c d e f g h i j k l m n o p",
+			expected: []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"},
+		},
+		{
+			name:     "case sensitive",
+			input:    "Dog dog DOG",
+			expected: []string{"DOG", "Dog", "dog"},
+		},
+		{
+			name:     "with punctuation",
+			input:    "hello! hello? hello. 'hello' \"hello\"",
+			expected: []string{"\"hello\"", "'hello'", "hello!", "hello.", "hello?"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Top10(tt.input)
+			if len(result) != len(tt.expected) {
+				t.Errorf("expected %d words, got %d", len(tt.expected), len(result))
+			}
+			for i, word := range tt.expected {
+				if i >= len(result) {
+					break
+				}
+				if result[i] != word {
+					t.Errorf("word[%d]: expected %q, got %q", i, word, result[i])
+				}
+			}
+		})
+	}
+}
+
+func TestTop10Clean(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "case insensitive",
+			input:    "Dog dog DOG",
+			expected: []string{"dog"},
+		},
+		{
+			name:     "remove punctuation",
+			input:    "hello! hello? hello. 'hello' \"hello\"",
+			expected: []string{"hello"},
+		},
+		{
+			name:     "dash in middle remains",
+			input:    "какой-то какойто",
+			expected: []string{"какой-то", "какойто"},
+		},
+		{
+			name:     "only punctuation",
+			input:    "- ! ? .",
+			expected: []string{},
+		},
+		{
+			name:     "multiple dashes",
+			input:    "--hello-- ---world---",
+			expected: []string{"hello", "world"},
+		},
+		{
+			name:     "combined",
+			input:    "Hello, hello! HELLO? 'hello' \"HELLO\" --hello--",
+			expected: []string{"hello"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Top10Clean(tt.input)
+			if len(result) != len(tt.expected) {
+				t.Errorf("expected %d words, got %d: %v", len(tt.expected), len(result), result)
+			}
+			for i, word := range tt.expected {
+				if i >= len(result) {
+					break
+				}
+				if result[i] != word {
+					t.Errorf("word[%d]: expected %q, got %q", i, word, result[i])
+				}
+			}
+		})
+	}
+}
