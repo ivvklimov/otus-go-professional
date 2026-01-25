@@ -330,14 +330,17 @@ func TestPipelineLargeVolume(t *testing.T) {
 		done := make(Bi)
 		const numElements = 500
 
+		var mu sync.Mutex
 		processedCount := 0
 		stage := func(in In) Out {
 			out := make(Bi)
 			go func() {
 				defer close(out)
 				for v := range in {
-					time.Sleep(time.Microsecond * 10) // Минимальная задержка
+					time.Sleep(time.Microsecond * 10)
+					mu.Lock()
 					processedCount++
+					mu.Unlock()
 					out <- v
 				}
 			}()
@@ -364,7 +367,11 @@ func TestPipelineLargeVolume(t *testing.T) {
 		}
 
 		// Должны обработаться только некоторые элементы
+		mu.Lock()
+		finalCount := processedCount
+		mu.Unlock()
+
 		require.Less(t, len(result), numElements)
-		require.Less(t, processedCount, numElements*2) // 2 стадии
+		require.Less(t, finalCount, numElements*2) // 2 стадии
 	})
 }
