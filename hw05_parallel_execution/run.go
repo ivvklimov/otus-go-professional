@@ -27,8 +27,32 @@ func Run(tasks []Task, n, m int) error {
 	var errorCount int32
 	var taskChanClosed int32 // Флаг, что taskChan уже закрыт.
 
+	startWorkers(&wg, n, len(tasks), taskChan, errChan, done)
+	startController(&wg, tasks, n, m, taskChan, errChan, done, &errorCount, &taskChanClosed)
+
+	wg.Wait()
+
+	// Контроллер закрывает done и выходит при достижении лимита ошибок,
+	// но некоторые воркеры могут ещё не завершиться. Когда wg.Wait() разблокируется,
+	// мы проверяем накопившийся errorCount, чтобы вернуть правильный результат.
+	// Без этой проверки функция могла бы вернуть nil даже при превышении лимита.
+	if int(atomic.LoadInt32(&errorCount)) >= m {
+		return ErrErrorsLimitExceeded
+	}
+
+	return nil
+}
+
+//nolint:gocognit
+func startWorkers(
+	wg *sync.WaitGroup,
+	n, taskLen int,
+	taskChan chan Task,
+	errChan chan error,
+	done chan struct{},
+) {
 	// Воркеры.
-	for i := 0; i < n && i < len(tasks); i++ {
+	for i := 0; i < n && i < taskLen; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -56,7 +80,18 @@ func Run(tasks []Task, n, m int) error {
 			}
 		}()
 	}
+}
 
+//nolint:gocognit
+func startController(
+	wg *sync.WaitGroup,
+	tasks []Task,
+	n, m int,
+	taskChan chan Task,
+	errChan chan error,
+	done chan struct{},
+	errorCount, taskChanClosed *int32,
+) {
 	// Контроллер.
 	wg.Add(1)
 	go func() {
@@ -90,7 +125,7 @@ func Run(tasks []Task, n, m int) error {
 				completed++ // Увеличиваем только после проверки ok.
 
 				if err != nil {
-					newCount := atomic.AddInt32(&errorCount, 1)
+					newCount := atomic.AddInt32(errorCount, 1)
 					if int(newCount) >= m {
 						close(done)
 						return
@@ -105,23 +140,11 @@ func Run(tasks []Task, n, m int) error {
 					case taskChan <- tasks[sent]:
 						sent++
 					}
-				} else if sent == totalTasks && atomic.CompareAndSwapInt32(&taskChanClosed, 0, 1) {
+				} else if sent == totalTasks && atomic.CompareAndSwapInt32(taskChanClosed, 0, 1) {
 					// Закрываем taskChan только один раз.
 					close(taskChan)
 				}
 			}
 		}
 	}()
-
-	wg.Wait()
-
-	// Контроллер закрывает done и выходит при достижении лимита ошибок,
-	// но некоторые воркеры могут ещё не завершиться. Когда wg.Wait() разблокируется,
-	// мы проверяем накопившийся errorCount, чтобы вернуть правильный результат.
-	// Без этой проверки функция могла бы вернуть nil даже при превышении лимита.
-	if int(atomic.LoadInt32(&errorCount)) >= m {
-		return ErrErrorsLimitExceeded
-	}
-
-	return nil
 }
