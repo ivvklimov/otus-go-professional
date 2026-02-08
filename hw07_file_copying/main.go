@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
 )
 
 var (
@@ -18,5 +20,18 @@ func init() {
 
 func main() {
 	flag.Parse()
-	// Place your code here.
+
+	// Проверяем обязательные параметры
+	if from == "" || to == "" {
+		fmt.Println("Usage: go-cp -from <file> -to <file> [-offset N] [-limit N]")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	// Выполняем копирование
+	err := Copy(from, to, offset, limit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }
