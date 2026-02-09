@@ -145,19 +145,73 @@ func TestCopyInvalidInput(t *testing.T) {
 			t.Error("expected error for non-existent file")
 		}
 	})
+}
 
+func TestCopyEmptySource(t *testing.T) {
 	t.Run("empty source file", func(t *testing.T) {
-		tmpFile, err := os.CreateTemp("", "empty.txt")
-		if err != nil {
+		emptyFilePath := filepath.Join(t.TempDir(), "empty.txt")
+		if err := os.WriteFile(emptyFilePath, []byte{}, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		tmpFile.Close()
-		defer os.Remove(tmpFile.Name())
 
 		outputPath := filepath.Join(t.TempDir(), "output.txt")
-		err = Copy(tmpFile.Name(), outputPath, 0, 100)
-		if !errors.Is(err, ErrUnsupportedFile) {
-			t.Errorf("expected ErrUnsupportedFile, got %v", err)
+		err := Copy(emptyFilePath, outputPath, 0, 0)
+		if err != nil {
+			t.Errorf("unexpected error copying empty file: %v", err)
+		}
+
+		info, err := os.Stat(outputPath)
+		if err != nil {
+			t.Fatalf("failed to stat output file: %v", err)
+		}
+		if info.Size() != 0 {
+			t.Errorf("expected empty file, got size %d", info.Size())
+		}
+	})
+
+	t.Run("empty file with offset", func(t *testing.T) {
+		emptyFilePath := filepath.Join(t.TempDir(), "empty.txt")
+		if err := os.WriteFile(emptyFilePath, []byte{}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		outputPath := filepath.Join(t.TempDir(), "output.txt")
+		err := Copy(emptyFilePath, outputPath, 10, 100)
+		if !errors.Is(err, ErrOffsetExceedsFileSize) {
+			t.Errorf("expected ErrOffsetExceedsFileSize, got %v", err)
+		}
+	})
+
+	t.Run("empty file with limit", func(t *testing.T) {
+		emptyFilePath := filepath.Join(t.TempDir(), "empty.txt")
+		if err := os.WriteFile(emptyFilePath, []byte{}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		outputPath := filepath.Join(t.TempDir(), "output.txt")
+		err := Copy(emptyFilePath, outputPath, 0, 100)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		info, err := os.Stat(outputPath)
+		if err != nil {
+			t.Fatalf("failed to stat output file: %v", err)
+		}
+		if info.Size() != 0 {
+			t.Errorf("expected empty file, got size %d", info.Size())
+		}
+	})
+}
+
+func TestCopySpecialFile(t *testing.T) {
+	t.Run("special file like /dev/urandom", func(t *testing.T) {
+		if _, err := os.Stat("/dev/urandom"); err == nil {
+			outputPath := filepath.Join(t.TempDir(), "output.txt")
+			err := Copy("/dev/urandom", outputPath, 0, 100)
+			if !errors.Is(err, ErrUnsupportedFile) {
+				t.Errorf("expected ErrUnsupportedFile for /dev/urandom, got %v", err)
+			}
 		}
 	})
 }
