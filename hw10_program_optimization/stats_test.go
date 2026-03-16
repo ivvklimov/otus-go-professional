@@ -1,3 +1,4 @@
+//go:build !bench
 // +build !bench
 
 package hw10programoptimization
@@ -35,5 +36,39 @@ func TestGetDomainStat(t *testing.T) {
 		result, err := GetDomainStat(bytes.NewBufferString(data), "unknown")
 		require.NoError(t, err)
 		require.Equal(t, DomainStat{}, result)
+	})
+}
+
+func TestGetDomainStat_EdgeCases(t *testing.T) {
+	t.Run("empty input", func(t *testing.T) {
+		result, err := GetDomainStat(bytes.NewBufferString(""), "com")
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("email without @", func(t *testing.T) {
+		data := `{"Email":"invalid-email"}`
+		result, err := GetDomainStat(bytes.NewBufferString(data), "com")
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("case insensitive domain match", func(t *testing.T) {
+		data := `{"Email":"user@Example.COM"}`
+		result, err := GetDomainStat(bytes.NewBufferString(data), "com")
+		require.NoError(t, err)
+		require.Equal(t, DomainStat{"example.com": 1}, result)
+	})
+
+	t.Run("multiple users same domain", func(t *testing.T) {
+		data := `{"Email":"a@test.com"}
+{"Email":"b@test.com"}
+{"Email":"c@other.com"}`
+		result, err := GetDomainStat(bytes.NewBufferString(data), "com")
+		require.NoError(t, err)
+		require.Equal(t, DomainStat{
+			"test.com":  2,
+			"other.com": 1,
+		}, result)
 	})
 }
