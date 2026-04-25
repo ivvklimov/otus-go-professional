@@ -35,10 +35,11 @@ func (v ValidationErrors) Error() string {
 	return sb.String()
 }
 
-// Программные ошибки (не ошибки валидации данных).
+// Программные ошибки (ошибки разработчика).
 var (
-	ErrInvalidTag    = errors.New("invalid validate tag")
-	ErrInvalidRegexp = errors.New("invalid regular expression")
+	ErrInvalidTag      = errors.New("invalid validate tag")
+	ErrInvalidRegexp   = errors.New("invalid regular expression")
+	ErrUnsupportedType = errors.New("unsupported field type for validation")
 )
 
 // Валидирует публичные поля структуры по тэгу validate.
@@ -71,6 +72,16 @@ func Validate(v interface{}) error {
 			continue
 		}
 
+		// Проверка: тип поля поддерживает валидацию?
+		var elemKind reflect.Kind
+		if fieldVal.Kind() == reflect.Slice {
+			elemKind = fieldVal.Type().Elem().Kind()
+		}
+
+		if !isSupportedType(fieldVal.Kind(), elemKind) {
+			return fmt.Errorf("%s: %w", field.Name, ErrUnsupportedType)
+		}
+
 		validateSimpleField(field.Name, fieldVal, tag, &allErrors)
 	}
 
@@ -80,9 +91,25 @@ func Validate(v interface{}) error {
 	return nil
 }
 
+// Проверяет, поддерживает ли тип валидацию.
+// Поддерживаются: string, int, []string, []int.
+//
+//nolint:exhaustive
+func isSupportedType(kind reflect.Kind, elemKind reflect.Kind) bool {
+	switch kind {
+	case reflect.String, reflect.Int:
+		return true
+	case reflect.Slice:
+		// Для слайсов проверяем тип элемента.
+		return elemKind == reflect.String || elemKind == reflect.Int
+	default:
+		return false
+	}
+}
+
 func validateNestedField(fieldName string, fieldVal reflect.Value, allErrors *ValidationErrors) error {
 	if fieldVal.Kind() != reflect.Struct {
-		return nil
+		return fmt.Errorf("%s: %w", fieldName, ErrUnsupportedType)
 	}
 	if err := Validate(fieldVal.Interface()); err != nil {
 		var nestedErrs ValidationErrors
@@ -127,10 +154,9 @@ func validateSimpleField(fieldName string, val reflect.Value, tag string, allErr
 }
 
 func validateSliceField(fieldName string, val reflect.Value, rules []string, allErrors *ValidationErrors) {
+	// Тип поля уже проверен в Validate() через isSupportedType.
+	// Здесь валидируем каждый элемент слайса.
 	elemKind := val.Type().Elem().Kind()
-	if elemKind != reflect.String && elemKind != reflect.Int {
-		return
-	}
 
 	for i := 0; i < val.Len(); i++ {
 		elem := val.Index(i)

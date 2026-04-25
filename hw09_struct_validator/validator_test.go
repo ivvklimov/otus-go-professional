@@ -138,6 +138,48 @@ func TestValidate(t *testing.T) {
 			expectedErr: ValidationErrors{},
 			wantFields:  []string{"Numbers[0]"},
 		},
+		{
+			name: "неподдерживаемый тип []byte с тэгом validate (программная ошибка)",
+			in: struct {
+				Data []byte `validate:"len:10"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			name: "неподдерживаемый тип bool с тэгом validate (программная ошибка)",
+			in: struct {
+				Flag bool `validate:"in:true,false"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			name: "неподдерживаемый тип float64 с тэгом validate (программная ошибка)",
+			in: struct {
+				Price float64 `validate:"min:0"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			name: "неподдерживаемый тип map с тэгом validate (программная ошибка)",
+			in: struct {
+				Meta map[string]string `validate:"len:5"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			name: "неподдерживаемый тип слайса []bool с тэгом validate (программная ошибка)",
+			in: struct {
+				Flags []bool `validate:"len:3"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			name: "неподдерживаемый тип слайса []float64 с тэгом validate (программная ошибка)",
+			in: struct {
+				Prices []float64 `validate:"min:0"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
 	}
 
 	for _, tt := range tests {
@@ -180,7 +222,9 @@ func runValidateTest(
 		return
 	}
 
-	if errors.Is(err, ErrInvalidRegexp) || errors.Is(err, ErrInvalidTag) {
+	if errors.Is(err, ErrInvalidRegexp) ||
+		errors.Is(err, ErrInvalidTag) ||
+		errors.Is(err, ErrUnsupportedType) {
 		if !errors.Is(err, tt.expectedErr) {
 			t.Errorf("Validate() error = %v, want %v", err, tt.expectedErr)
 		}
@@ -286,6 +330,14 @@ func TestValidateNested(t *testing.T) {
 			wantFields: nil,
 			wantErr:    true,
 		},
+		{
+			name: "тэг nested на поле не-структуре (программная ошибка)",
+			in: struct {
+				Field string `validate:"nested"`
+			}{},
+			wantFields: nil,
+			wantErr:    true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -321,7 +373,9 @@ func runNestedTest(
 		return
 	}
 
-	if errors.Is(err, ErrInvalidRegexp) || errors.Is(err, ErrInvalidTag) {
+	if errors.Is(err, ErrInvalidRegexp) ||
+		errors.Is(err, ErrInvalidTag) ||
+		errors.Is(err, ErrUnsupportedType) {
 		return
 	}
 
