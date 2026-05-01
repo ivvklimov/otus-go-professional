@@ -23,7 +23,7 @@ func Run(tasks []Task, n, m int) error {
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 
-	errorCount := 0         // было: var errorCount int32
+	errorCount := 0
 	taskChanClosed := false // Флаг, что taskChan уже закрыт.
 
 	startWorkers(&wg, n, len(tasks), taskChan, errChan, done)
