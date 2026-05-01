@@ -3,7 +3,6 @@ package hw05parallelexecution
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 )
 
 var ErrErrorsLimitExceeded = errors.New("errors limit exceeded")
@@ -24,8 +23,8 @@ func Run(tasks []Task, n, m int) error {
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 
-	var errorCount int32
-	var taskChanClosed int32 // Флаг, что taskChan уже закрыт.
+	errorCount := 0         // было: var errorCount int32
+	taskChanClosed := false // Флаг, что taskChan уже закрыт.
 
 	startWorkers(&wg, n, len(tasks), taskChan, errChan, done)
 	startController(&wg, tasks, n, m, taskChan, errChan, done, &errorCount, &taskChanClosed)
@@ -36,7 +35,7 @@ func Run(tasks []Task, n, m int) error {
 	// но некоторые воркеры могут ещё не завершиться. Когда wg.Wait() разблокируется,
 	// мы проверяем накопившийся errorCount, чтобы вернуть правильный результат.
 	// Без этой проверки функция могла бы вернуть nil даже при превышении лимита.
-	if int(atomic.LoadInt32(&errorCount)) >= m {
+	if errorCount >= m {
 		return ErrErrorsLimitExceeded
 	}
 
@@ -65,16 +64,10 @@ func startWorkers(
 						return
 					}
 
-					if err := task(); err != nil {
-						select {
-						case errChan <- err:
-						case <-done:
-						}
-					} else {
-						select {
-						case errChan <- nil:
-						case <-done:
-						}
+					err := task()
+					select {
+					case errChan <- err:
+					case <-done:
 					}
 				}
 			}
@@ -90,7 +83,8 @@ func startController(
 	taskChan chan Task,
 	errChan chan error,
 	done chan struct{},
-	errorCount, taskChanClosed *int32,
+	errorCount *int,
+	taskChanClosed *bool,
 ) {
 	// Контроллер.
 	wg.Add(1)
@@ -125,8 +119,8 @@ func startController(
 				completed++ // Увеличиваем только после проверки ok.
 
 				if err != nil {
-					newCount := atomic.AddInt32(errorCount, 1)
-					if int(newCount) >= m {
+					*errorCount++
+					if *errorCount >= m {
 						close(done)
 						return
 					}
@@ -134,14 +128,10 @@ func startController(
 
 				// Отправляем следующую задачу если есть.
 				if sent < totalTasks {
-					select {
-					case <-done:
-						return
-					case taskChan <- tasks[sent]:
-						sent++
-					}
-				} else if sent == totalTasks && atomic.CompareAndSwapInt32(taskChanClosed, 0, 1) {
-					// Закрываем taskChan только один раз.
+					taskChan <- tasks[sent]
+					sent++
+				} else if sent == totalTasks && !*taskChanClosed {
+					*taskChanClosed = true
 					close(taskChan)
 				}
 			}
