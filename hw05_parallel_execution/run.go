@@ -42,7 +42,6 @@ func Run(tasks []Task, n, m int) error {
 	return nil
 }
 
-//nolint:gocognit
 func startWorkers(
 	wg *sync.WaitGroup,
 	n, taskLen int,
@@ -75,7 +74,6 @@ func startWorkers(
 	}
 }
 
-//nolint:gocognit
 func startController(
 	wg *sync.WaitGroup,
 	tasks []Task,
