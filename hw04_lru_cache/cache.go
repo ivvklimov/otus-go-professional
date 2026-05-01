@@ -23,7 +23,7 @@ type lruCache struct {
 	capacity int
 	queue    List
 	items    map[Key]*ListItem
-	mu       sync.RWMutex // RWMutex для потокобезопасности
+	mu       sync.Mutex // только одна горутина за раз выполняет операции с кэшем
 }
 
 // NewCache создает новый LRU-кэш заданной ёмкости.
@@ -37,16 +37,14 @@ func NewCache(capacity int) Cache {
 
 // Get возвращает значение по ключу и флаг его наличия в кэше.
 func (c *lruCache) Get(key Key) (interface{}, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	item, exists := c.items[key]
 	if !exists {
 		return nil, false
 	}
 
-	// MoveToFront под тем же RLock - он только читает список
-	// и меняет порядок, но не удаляет элементы
 	c.queue.MoveToFront(item)
 
 	if ci, ok := item.Value.(*cacheItem); ok {

@@ -84,19 +84,13 @@ func (l *list) Remove(i *ListItem) {
 
 // MoveToFront перемещает элемент в начало списка.
 func (l *list) MoveToFront(i *ListItem) {
-	if i == nil || l.front == nil {
+	// Проверяем, что элемент существует, список не пуст, и элемент не первый
+	if i == nil || l.front == nil || i == l.front {
 		return
 	}
 
-	if i == l.front {
-		return
-	}
-
-	if i.Prev != nil {
-		i.Prev.Next = i.Next
-	} else {
-		l.front = i.Next
-	}
+	// Исключаем i из списка: предыдущий элемент теперь ссылается на следующий за i
+	i.Prev.Next = i.Next
 
 	if i.Next != nil {
 		i.Next.Prev = i.Prev
@@ -104,18 +98,11 @@ func (l *list) MoveToFront(i *ListItem) {
 		l.back = i.Prev
 	}
 
+	// Вставляем i в начало
 	i.Prev = nil
 	i.Next = l.front
-
-	if l.front != nil {
-		l.front.Prev = i
-	}
-
+	l.front.Prev = i
 	l.front = i
-
-	if l.back == nil {
-		l.back = i
-	}
 }
 
 // Len возвращает количество элементов в списке.
