@@ -11,17 +11,18 @@ ExecutePipeline — это конвейер обработки данных с �
 
 Как это решено:
 
-1. Вход каждой стадии оборачивается (orDone):
-   когда done закрыт, новые данные в стадию больше не поступают,
-   входной канал закрывается, и стадия выходит из range in.
+1. Вход и выход каждой стадии оборачиваются одной функцией forward:
+   forward создаёт канал и горутину, которая пересылает данные.
+   При сигнале done горутина выходит из цикла, закрывает выходной канал
+   и вызывает drain для входного канала, вычитывая все оставшиеся значения.
 
-2. Выход каждой стадии тоже оборачивается:
-   данные передаются дальше по пайплайну,
-   а при закрытии done выполняется drain — вычитывание всех оставшихся значений.
+2. Drain нужен затем, чтобы ни одна стадия не осталась без читателя:
+   когда forward закрывает выходной канал, стадия-отправитель может
+   заблокироваться на отправке. Drain вычитывает данные и разблокирует её.
 
-3. Drain нужен затем, чтобы ни одна стадия не осталась без читателя.
-   Он просто забирает все значения из канала, позволяя стадиям
-   спокойно завершить работу и выйти.
+3. Порядок в defer: сначала close(out), затем drain(in):
+   - close(out) мгновенно сигнализирует следующей стадии об остановке
+   - drain(in) разблокирует текущую стадию, вычитывая остатки
 
 Итог:
   - при отмене новые данные не принимаются,
@@ -51,37 +52,16 @@ func drain(in In) {
 	}
 }
 
-func orDone(in In, done In) Out {
-	out := make(Bi)
-	go func() {
-		defer close(out)
-		for {
-			select {
-			case <-done:
-				return
-			case v, ok := <-in:
-				if !ok {
-					return
-				}
-				select {
-				case <-done:
-					return
-				case out <- v:
-				}
-			}
-		}
-	}()
-	return out
-}
-
 func forward(in In, done In) Out {
 	out := make(Bi)
 	go func() {
-		defer close(out)
+		defer func() {
+			close(out)
+			drain(in) // вычитываем оставшиеся данные, чтобы разблокировать отправителя
+		}()
 		for {
 			select {
 			case <-done:
-				drain(in)
 				return
 			case v, ok := <-in:
 				if !ok {
@@ -89,7 +69,6 @@ func forward(in In, done In) Out {
 				}
 				select {
 				case <-done:
-					drain(in)
 					return
 				case out <- v:
 				}
@@ -106,7 +85,7 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 
 	current := in
 	for _, stage := range stages {
-		stageIn := orDone(current, done)
+		stageIn := forward(current, done)
 		stageOut := stage(stageIn)
 		current = forward(stageOut, done)
 	}
