@@ -1,0 +1,26 @@
+version: '3.7'
+
+networks:
+  otus-calendar:
+    driver: bridge
+
+services:
+  calendar-postgres:
+    container_name: otus_calendar_postgres
+    image: postgres:12.2
+    restart: always
+    networks:
+      - otus-calendar
+    environment:
+      PGDATA: /var/lib/postgresql/calendar
+      POSTGRES_USER: intranet
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: calendar
+      POSTGRES_PORT: 5432
+    ports:
+      - 5539:5432
+    volumes:
+      - pg_otus_calendar_data:/var/lib/postgresql/calendar
+
+volumes:
+  pg_otus_calendar_data:
