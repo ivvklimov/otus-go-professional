@@ -59,7 +59,7 @@ func (s *TestSuite) randomInt64() int64 {
 // ID намеренно НЕ задаём — его сгенерирует база данных.
 func (s *TestSuite) makeTestEvent(ownerID int64, start, end time.Time) storage.Event {
 	return storage.Event{
-		ID:          "", // 👈 Пустой! БД сгенерирует через gen_random_uuid()
+		ID:          "", // Пустой! БД сгенерирует через gen_random_uuid()
 		OwnerID:     fmt.Sprintf("%d", ownerID),
 		Title:       "Test Event",
 		Description: nil,
