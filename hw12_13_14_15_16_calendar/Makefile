@@ -1,4 +1,4 @@
-.PHONY: build run migrate tidy lint migrate-up migrate-down migrate-status tidy test-db-up test-db-down test
+.PHONY: build run migrate tidy install-lint lint migrate-up migrate-down migrate-status tidy test-db-up test-db-down test
 
 # === Переменные для версионирования ===
 GIT_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
@@ -22,8 +22,15 @@ run: build
 tidy:
 	go mod tidy
 
-lint:
-	golangci-lint run
+# LINT_VERSION := v1.63.4
+# # Динамически получаем GOPATH. Если не задан, подставит ~/go
+# GO_BIN := $(shell go env GOPATH)/bin
+
+install-lint-deps:
+	(which golangci-lint > /dev/null) || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.63.4
+
+lint: install-lint-deps
+	golangci-lint run ./...
 
 # === Migration (main DB) ===
 # Переменные для подключения к основной БД (можно переопределять через ENV)
