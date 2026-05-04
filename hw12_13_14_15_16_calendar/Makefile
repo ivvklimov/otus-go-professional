@@ -83,7 +83,7 @@ TEST_COMPOSE_FILE ?= deployments/docker/calendar/docker-compose.test.yml
 TEST_CONTAINER_NAME ?= otus_calendar_postgres_test
 
 test-db-up:
-	docker-compose -f $(TEST_COMPOSE_FILE) up -d
+	docker compose -f $(TEST_COMPOSE_FILE) up -d
 	@echo "Waiting for DB..."
 	@until docker exec $(TEST_CONTAINER_NAME) pg_isready -U $(TEST_DB_USER) -d $(TEST_DB_NAME) > /dev/null 2>&1; do \
 		sleep 1; \
@@ -91,7 +91,7 @@ test-db-up:
 	@echo "DB is ready!"
 
 test-db-down:
-	docker-compose -f $(TEST_COMPOSE_FILE) down
+	docker compose -f $(TEST_COMPOSE_FILE) down
 
 test: test-db-up
 	@echo "Running migrations on test DB..."
