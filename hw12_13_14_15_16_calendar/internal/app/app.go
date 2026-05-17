@@ -2,10 +2,11 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/logger"
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/storage"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/logger"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/storage"
 )
 
 // App представляет основную логику приложения (бизнес-слой).
@@ -23,15 +24,27 @@ func New(logger *logger.Logger, storage storage.Storage) *App {
 }
 
 // CreateEvent создаёт новое событие.
-func (a *App) CreateEvent(ctx context.Context, id, title string) error {
+func (a *App) CreateEvent(ctx context.Context, title string, ownerID int64, description *string, dateStart, dateEnd time.Time, notifyAt *time.Time) (*storage.Event, error) {
 	a.logger.Info("creating event: " + title)
 
-	evt := storage.Event{
-		ID:    id,
-		Title: title,
+	// Создаём событие с пустым ID - хранилище заполнит его (БД через RETURNING, memory - сама)
+	evt := &storage.Event{
+		ID:          "",
+		Title:       title,
+		OwnerID:     ownerID,
+		Description: description,
+		DateStart:   dateStart,
+		DateEnd:     dateEnd,
+		NotifyAt:    notifyAt,
 	}
 
-	return a.storage.CreateEvent(ctx, &evt)
+	// Вызываем хранилище - после этого evt.ID будет заполнен
+	if err := a.storage.CreateEvent(ctx, evt); err != nil {
+		return nil, err
+	}
+
+	a.logger.Info("event created: id=" + evt.ID)
+	return evt, nil
 }
 
 // UpdateEvent обновляет существующее событие по ID.
@@ -53,7 +66,22 @@ func (a *App) GetEvent(ctx context.Context, id string) (storage.Event, error) {
 }
 
 // ListEvents возвращает список событий для владельца в заданном периоде.
-func (a *App) ListEvents(ctx context.Context, ownerID string, from, to time.Time) ([]storage.Event, error) {
-	a.logger.Info("listing events for owner: " + ownerID)
+func (a *App) ListEvents(ctx context.Context, ownerID int64, from, to time.Time) ([]storage.Event, error) {
+	a.logger.Info(fmt.Sprintf("listing events for owner: %d", ownerID))
 	return a.storage.ListEvents(ctx, ownerID, from, to)
 }
+
+// ==================== INTERFACE FOR TESTING ====================
+
+// Service описывает контракт слоя приложения.
+// Это позволяет подменять реализацию в юнит-тестах хэндлеров.
+type Service interface {
+	CreateEvent(ctx context.Context, title string, ownerID int64, description *string, dateStart, dateEnd time.Time, notifyAt *time.Time) (*storage.Event, error)
+	UpdateEvent(ctx context.Context, id string, event storage.Event) error
+	DeleteEvent(ctx context.Context, id string) error
+	GetEvent(ctx context.Context, id string) (storage.Event, error)
+	ListEvents(ctx context.Context, ownerID int64, from, to time.Time) ([]storage.Event, error)
+}
+
+// Ensure *App implements Service.
+var _ Service = (*App)(nil)

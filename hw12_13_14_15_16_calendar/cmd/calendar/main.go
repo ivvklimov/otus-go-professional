@@ -4,21 +4,26 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/app"
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/config"
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/logger"
-	internalhttp "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/server/http"
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/storage"
-	memorystorage "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/storage/memory"
-	sqlstorage "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/storage/sql"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/app"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/config"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/logger"
+	internalgrpc "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/server/grpc"
+	internalhttp "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/server/http"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/storage"
+	memorystorage "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/storage/memory"
+	sqlstorage "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/storage/sql"
 )
 
 var (
@@ -70,16 +75,47 @@ func main() {
 		syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	defer cancel()
 
+	// ==================== gRPC Server ====================
+	var grpcServer *grpc.Server
+
+	grpcAddr := ":" + cfg.GRPC.Port
+	grpcListener, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		logg.Error("failed to listen gRPC: " + err.Error())
+		os.Exit(1)
+	}
+
+	grpcServer = grpc.NewServer(
+		grpc.UnaryInterceptor(internalgrpc.LoggingInterceptor(logg)),
+	)
+	internalgrpc.New(calendar, logg).Register(grpcServer)
+	reflection.Register(grpcServer) // для дебага, чтобы не указывать путь дло proto файлов
+
+	go func() {
+		logg.Info("gRPC server starting at " + grpcAddr)
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			logg.Error("gRPC server error: " + err.Error())
+		}
+	}()
+	// ==================== /gRPC Server ====================
+
 	go func() {
 		<-ctx.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+
+		// Остановка gRPC
+		if grpcServer != nil {
+			grpcServer.GracefulStop()
+			logg.Info("gRPC server stopped")
+		}
+
+		// Остановка HTTP
+		ctxShutdown, cancel := context.WithTimeout(context.Background(), time.Second*3)
 		defer cancel()
-		if err := server.Stop(ctx); err != nil {
+		if err := server.Stop(ctxShutdown); err != nil {
 			logg.Error("failed to stop http server: " + err.Error())
 		}
 	}()
 
-	// 👇 Упрощённый лог (без key-value пар)
 	logg.Info("calendar is running... (storage: " + cfg.Storage.Type + ")")
 
 	if err := server.Start(ctx); err != nil {

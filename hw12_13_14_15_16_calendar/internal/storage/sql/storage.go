@@ -10,10 +10,10 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/storage"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/storage"
 )
 
-// Storage — реализация интерфейса storage.Storage на PostgreSQL.
+// Storage - реализация интерфейса storage.Storage на PostgreSQL.
 type Storage struct {
 	db *sqlx.DB
 }
@@ -24,7 +24,7 @@ func New(db *sqlx.DB) *Storage {
 }
 
 // CreateEvent добавляет событие в БД.
-// event — указатель, чтобы мы могли записать туда сгенерированный ID.
+// event - указатель, чтобы мы могли записать туда сгенерированный ID.
 func (s *Storage) CreateEvent(ctx context.Context, event *storage.Event) error {
 	// Вставляем данные БЕЗ id. База сгенерирует его сама.
 	query := `
@@ -57,17 +57,36 @@ func (s *Storage) CreateEvent(ctx context.Context, event *storage.Event) error {
 	return nil
 }
 
-// UpdateEvent изменяет существующее событие.
+// UpdateEvent изменяет существующее событие (частичное обновление).
 func (s *Storage) UpdateEvent(ctx context.Context, id string, event storage.Event) error {
-	// Сначала проверим, что событие существует и принадлежит владельцу
-	exists, err := s.eventExists(ctx, id, event.OwnerID)
+	// 1. Получаем текущее состояние. Если события нет - вернёт ErrNotFound
+	current, err := s.GetEvent(ctx, id)
 	if err != nil {
-		return fmt.Errorf("check event exists: %w", err)
-	}
-	if !exists {
-		return storage.ErrNotFound
+		return err
 	}
 
+	// 2. Накладываем изменения только на переданные поля
+	if event.Title != "" {
+		current.Title = event.Title
+	}
+	if event.Description != nil {
+		current.Description = event.Description
+	}
+	if !event.DateStart.IsZero() {
+		current.DateStart = event.DateStart
+	}
+	if !event.DateEnd.IsZero() {
+		current.DateEnd = event.DateEnd
+	}
+	if event.NotifyAt != nil {
+		current.NotifyAt = event.NotifyAt
+	}
+	// OwnerID обычно не меняют, но если пришёл > 0 - обновим
+	if event.OwnerID != 0 {
+		current.OwnerID = event.OwnerID
+	}
+
+	// 3. Выполняем полное обновление валидными данными
 	query := `
 		UPDATE events SET
 			title = :title,
@@ -79,9 +98,8 @@ func (s *Storage) UpdateEvent(ctx context.Context, id string, event storage.Even
 			updated_at = NOW()
 		WHERE id = :id
 	`
-
-	event.ID = id // Убедимся, что ID в структуре совпадает с параметром
-	_, err = s.db.NamedExecContext(ctx, query, event)
+	current.ID = id
+	_, err = s.db.NamedExecContext(ctx, query, current)
 	if err != nil {
 		if isConflictError(err) {
 			return storage.ErrDateBusy
@@ -131,7 +149,7 @@ func (s *Storage) GetEvent(ctx context.Context, id string) (storage.Event, error
 }
 
 // ListEvents получает список событий владельца за период.
-func (s *Storage) ListEvents(ctx context.Context, ownerID string, from, to time.Time) ([]storage.Event, error) {
+func (s *Storage) ListEvents(ctx context.Context, ownerID int64, from, to time.Time) ([]storage.Event, error) {
 	var events []storage.Event
 
 	// Явно перечисляем колонки
@@ -155,14 +173,6 @@ func (s *Storage) ListEvents(ctx context.Context, ownerID string, from, to time.
 		events = []storage.Event{}
 	}
 	return events, nil
-}
-
-// eventExists проверяет существование события с указанным ID и ownerID.
-func (s *Storage) eventExists(ctx context.Context, id, ownerID string) (bool, error) {
-	var exists bool
-	query := `SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND owner_id = $2)`
-	err := s.db.GetContext(ctx, &exists, query, id, ownerID)
-	return exists, err
 }
 
 // isConflictError определяет, является ли ошибка конфликтом дат.

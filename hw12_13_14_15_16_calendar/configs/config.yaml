@@ -6,6 +6,9 @@ server:
   host: localhost
   port: 8888
 
+grpc:
+  port: 50051
+
 storage:
   type: sql  # available: memory | sql
 

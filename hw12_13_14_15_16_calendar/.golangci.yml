@@ -23,8 +23,15 @@ linters-settings:
         # Список разрешённых пакетов
         allow:
           - "$gostd"  # Стандартная библиотека
-          - "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar"  # Весь наш модуль
+          - "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar"  # Весь наш модуль
           - "github.com/jmoiron/sqlx"
           - "github.com/lib/pq"
           - "gopkg.in/yaml.v3"
           - "github.com/stretchr/testify"
+          - "google.golang.org/grpc"
+          - "google.golang.org/grpc/codes"
+          - "google.golang.org/grpc/status"
+          - "google.golang.org/grpc/reflection"
+          - "google.golang.org/grpc/peer"
+          - "google.golang.org/protobuf/types/known/emptypb"
+          - "google.golang.org/protobuf/types/known/timestamppb"

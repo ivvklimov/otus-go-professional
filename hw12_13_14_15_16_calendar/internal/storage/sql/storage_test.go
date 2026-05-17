@@ -2,21 +2,19 @@ package sqlstorage
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/storage"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/storage"
 )
 
-// TestSuite — набор тестов для SQL-хранилища.
+// TestSuite - набор тестов для SQL-хранилища.
 type TestSuite struct {
 	suite.Suite
 	db      *sqlx.DB
@@ -56,11 +54,11 @@ func (s *TestSuite) randomInt64() int64 {
 }
 
 // makeTestEvent создаёт тестовое событие
-// ID намеренно НЕ задаём — его сгенерирует база данных.
+// ID намеренно НЕ задаём - его сгенерирует база данных.
 func (s *TestSuite) makeTestEvent(ownerID int64, start, end time.Time) storage.Event {
 	return storage.Event{
 		ID:          "", // Пустой! БД сгенерирует через gen_random_uuid()
-		OwnerID:     fmt.Sprintf("%d", ownerID),
+		OwnerID:     ownerID,
 		Title:       "Test Event",
 		Description: nil,
 		DateStart:   start,
@@ -90,7 +88,7 @@ func (s *TestSuite) TestSQLStorage_CRUD() {
 	got, err := s.storage.GetEvent(s.ctx, event.ID)
 	s.Require().NoError(err)
 	s.Equal(event.ID, got.ID)
-	s.Equal(fmt.Sprintf("%d", ownerID), got.OwnerID)
+	s.Equal(ownerID, got.OwnerID)
 
 	// 3. UPDATE
 	event.Title = "Updated Title"
@@ -123,7 +121,7 @@ func (s *TestSuite) TestSQLStorage_DateConflict() {
 	err = s.storage.CreateEvent(s.ctx, &ev2)
 	s.ErrorIs(err, storage.ErrDateBusy, "expected conflict for overlapping dates")
 
-	// Создаём НЕпересекающееся (12:00–13:00) - должно пройти
+	// Создаём непересекающееся (12:00–13:00) - должно пройти
 	ev3 := s.makeTestEvent(ownerID, now.Add(2*time.Hour), now.Add(3*time.Hour))
 	err = s.storage.CreateEvent(s.ctx, &ev3)
 	s.Require().NoError(err, "non-overlapping event should be created")
@@ -159,7 +157,7 @@ func (s *TestSuite) TestSQLStorage_ListEvents() {
 	from := baseTime
 	to := baseTime.Add(48 * time.Hour)
 
-	events, err := s.storage.ListEvents(s.ctx, fmt.Sprintf("%d", ownerID), from, to)
+	events, err := s.storage.ListEvents(s.ctx, ownerID, from, to)
 	s.Require().NoError(err)
 	s.Len(events, 1, "expected exactly one event in range")
 
@@ -180,8 +178,129 @@ func (s *TestSuite) TestSQLStorage_NotFound() {
 	err = s.storage.DeleteEvent(s.ctx, nonExistentID)
 	s.ErrorIs(err, storage.ErrNotFound)
 
-	err = s.storage.UpdateEvent(s.ctx, nonExistentID, storage.Event{OwnerID: "12345"})
+	err = s.storage.UpdateEvent(s.ctx, nonExistentID, storage.Event{OwnerID: 12345})
 	s.ErrorIs(err, storage.ErrNotFound)
+}
+
+// TestSQLStorage_UpdatePartial_Title проверяет, что при обновлении только заголовка
+// остальные поля (даты, description) сохраняются.
+func (s *TestSuite) TestSQLStorage_UpdatePartial_Title() {
+	ownerID := s.randomInt64()
+	now := time.Now().UTC()
+
+	// Создаём событие с полным набором полей
+	evt := s.makeTestEvent(ownerID, now, now.Add(time.Hour))
+	evt.Description = stringPtr("original desc")
+	evt.NotifyAt = &now
+	err := s.storage.CreateEvent(s.ctx, &evt)
+	s.Require().NoError(err)
+
+	// Обновляем ТОЛЬКО заголовок (остальные поля - нулевые)
+	updated := storage.Event{Title: "New Title"}
+	err = s.storage.UpdateEvent(s.ctx, evt.ID, updated)
+	s.Require().NoError(err)
+
+	// Проверяем, что заголовок изменился, а остальное - нет
+	got, err := s.storage.GetEvent(s.ctx, evt.ID)
+	s.Require().NoError(err)
+	s.Equal("New Title", got.Title)
+	s.Equal("original desc", *got.Description)
+	s.True(timeEqualMicro(evt.DateStart, got.DateStart))
+	s.True(timeEqualMicro(evt.DateEnd, got.DateEnd))
+}
+
+// TestSQLStorage_UpdatePartial_Dates проверяет обновление только временного диапазона.
+func (s *TestSuite) TestSQLStorage_UpdatePartial_Dates() {
+	ownerID := s.randomInt64()
+	now := time.Now().UTC()
+
+	evt := s.makeTestEvent(ownerID, now, now.Add(time.Hour))
+	evt.Title = "Original Title"
+	err := s.storage.CreateEvent(s.ctx, &evt)
+	s.Require().NoError(err)
+
+	// Обновляем ТОЛЬКО даты
+	newStart := now.Add(2 * time.Hour)
+	newEnd := now.Add(3 * time.Hour)
+	updated := storage.Event{DateStart: newStart, DateEnd: newEnd}
+	err = s.storage.UpdateEvent(s.ctx, evt.ID, updated)
+	s.Require().NoError(err)
+
+	got, err := s.storage.GetEvent(s.ctx, evt.ID)
+	s.Require().NoError(err)
+	s.Equal("Original Title", got.Title) // заголовок не изменился
+	s.True(timeEqualMicro(newStart, got.DateStart))
+	s.True(timeEqualMicro(newEnd, got.DateEnd))
+}
+
+// TestSQLStorage_UpdateConflict проверяет, что обновление, приводящее к пересечению,
+// возвращает ErrDateBusy.
+func (s *TestSuite) TestSQLStorage_UpdateConflict() {
+	ownerID := s.randomInt64()
+	now := time.Now().UTC()
+
+	// Создаём два непересекающихся события
+	evt1 := s.makeTestEvent(ownerID, now, now.Add(time.Hour)) // 10:00–11:00
+	err := s.storage.CreateEvent(s.ctx, &evt1)
+	s.Require().NoError(err)
+
+	evt2 := s.makeTestEvent(ownerID, now.Add(2*time.Hour), now.Add(3*time.Hour)) // 12:00–13:00
+	err = s.storage.CreateEvent(s.ctx, &evt2)
+	s.Require().NoError(err)
+
+	// Пытаемся сдвинуть evt2 так, чтобы он пересёкся с evt1 (10:30–11:30)
+	conflictStart := now.Add(30 * time.Minute)
+	conflictEnd := now.Add(90 * time.Minute)
+	updated := storage.Event{DateStart: conflictStart, DateEnd: conflictEnd}
+	err = s.storage.UpdateEvent(s.ctx, evt2.ID, updated)
+	s.ErrorIs(err, storage.ErrDateBusy, "expected conflict when updating to overlapping dates")
+}
+
+// TestSQLStorage_ListEvents_Empty проверяет возврат пустого списка, если событий нет.
+func (s *TestSuite) TestSQLStorage_ListEvents_Empty() {
+	ownerID := s.randomInt64()
+	from := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2020, 1, 2, 0, 0, 0, 0, time.UTC)
+
+	events, err := s.storage.ListEvents(s.ctx, ownerID, from, to)
+	s.Require().NoError(err)
+	s.Empty(events, "expected empty list when no events exist")
+}
+
+// TestSQLStorage_ListEvents_OwnerFilter проверяет, что события другого владельца не возвращаются.
+func (s *TestSuite) TestSQLStorage_ListEvents_OwnerFilter() {
+	owner1 := s.randomInt64()
+	owner2 := s.randomInt64()
+	now := time.Now().UTC()
+
+	// Создаём события для двух владельцев в один и тот же временной слот
+	evt1 := s.makeTestEvent(owner1, now, now.Add(time.Hour))
+	_ = s.storage.CreateEvent(s.ctx, &evt1)
+
+	evt2 := s.makeTestEvent(owner2, now, now.Add(time.Hour))
+	_ = s.storage.CreateEvent(s.ctx, &evt2)
+
+	// Запрашиваем только для owner1
+	events, err := s.storage.ListEvents(s.ctx, owner1, now, now.Add(2*time.Hour))
+	s.Require().NoError(err)
+	s.Len(events, 1)
+	s.Equal(owner1, events[0].OwnerID)
+}
+
+// stringPtr - хелпер для получения *string из string.
+func stringPtr(s string) *string {
+	return &s
+}
+
+// timeEqualMicro сравнивает два time.Time с допуском в 1 микросекунду.
+// Это нужно потому, что PostgreSQL хранит timestamp с микросекундной точностью,
+// а при конвертации через lib/pq могут возникать расхождения в наносекундах.
+func timeEqualMicro(t1, t2 time.Time) bool {
+	diff := t1.Sub(t2)
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff < time.Microsecond
 }
 
 // ==================== ЗАПУСК ====================

@@ -6,26 +6,34 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/logger"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/app"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/logger"
 )
 
-// Server — HTTP-сервер с поддержкой graceful shutdown.
+// Server - HTTP-сервер с поддержкой graceful shutdown.
 type Server struct {
 	httpServer *http.Server
 	logger     *logger.Logger
 }
 
 // NewServer создаёт новый сервер.
-func NewServer(host string, port int, logger *logger.Logger, app interface{}) *Server {
+func NewServer(host string, port int, logger *logger.Logger, app app.Service) *Server {
 	mux := http.NewServeMux()
 
-	// ДЗ №12: только один эндпоинт /hello
-	mux.HandleFunc("/hello", helloHandler)
+	// Создаём хэндлер с внедрёнными зависимостями
+	h := NewHandler(app, logger)
+
+	// API v1 routes
+	mux.HandleFunc("POST /api/v1/calendar/events", h.CreateEvent)
+	mux.HandleFunc("GET /api/v1/calendar/events/", h.GetEvent)
+	mux.HandleFunc("PUT /api/v1/calendar/events/", h.UpdateEvent)
+	mux.HandleFunc("DELETE /api/v1/calendar/events/", h.DeleteEvent)
+	mux.HandleFunc("GET /api/v1/calendar/events/day", h.ListEventsForDay)
+	mux.HandleFunc("GET /api/v1/calendar/events/week", h.ListEventsForWeek)
+	mux.HandleFunc("GET /api/v1/calendar/events/month", h.ListEventsForMonth)
 
 	// Применяем middleware логирования
 	handler := LoggingMiddleware(logger, mux)
-
-	_ = app
 
 	return &Server{
 		httpServer: &http.Server{

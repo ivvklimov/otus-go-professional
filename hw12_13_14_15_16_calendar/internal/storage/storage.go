@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Storage — интерфейс для работы с хранилищем событий.
+// Storage - интерфейс для работы с хранилищем событий.
 // Любая реализация (in-memory, SQL) должна соответствовать этому контракту.
 type Storage interface {
 	// CreateEvent добавляет событие в хранилище.
@@ -22,5 +22,5 @@ type Storage interface {
 	GetEvent(ctx context.Context, id string) (Event, error)
 
 	// ListEvents получает список событий владельца за указанный период.
-	ListEvents(ctx context.Context, ownerID string, from, to time.Time) ([]Event, error)
+	ListEvents(ctx context.Context, ownerID int64, from, to time.Time) ([]Event, error)
 }

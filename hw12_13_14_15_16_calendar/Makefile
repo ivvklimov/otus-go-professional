@@ -1,4 +1,4 @@
-.PHONY: build run migrate tidy install-lint lint install-goose-deps migrate-up migrate-down migrate-status tidy test-db-up test-db-down test
+.PHONY: build run migrate tidy install-lint lint install-goose-deps migrate-up migrate-down migrate-status tidy test-db-up test-db-down test generate
 
 # === Переменные для версионирования ===
 GIT_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
@@ -23,7 +23,7 @@ tidy:
 	go mod tidy
 
 install-lint-deps:
-	(which golangci-lint > /dev/null) || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.63.4
+	(which golangci-lint > /dev/null) || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.65.0
 
 lint: install-lint-deps
 	golangci-lint run ./...
@@ -88,7 +88,7 @@ TEST_COMPOSE_FILE ?= deployments/docker/calendar/docker-compose.test.yml
 TEST_CONTAINER_NAME ?= otus_calendar_postgres_test
 
 test-db-up:
-	docker compose -f $(TEST_COMPOSE_FILE) up -d
+	docker-compose -f $(TEST_COMPOSE_FILE) up -d
 	@echo "Waiting for DB..."
 	@until docker exec $(TEST_CONTAINER_NAME) pg_isready -U $(TEST_DB_USER) -d $(TEST_DB_NAME) > /dev/null 2>&1; do \
 		sleep 1; \
@@ -96,7 +96,7 @@ test-db-up:
 	@echo "DB is ready!"
 
 test-db-down:
-	docker compose -f $(TEST_COMPOSE_FILE) down
+	docker-compose -f $(TEST_COMPOSE_FILE) down
 
 test: test-db-up install-goose-deps
 	@echo "Running migrations on test DB..."
@@ -105,3 +105,6 @@ test: test-db-up install-goose-deps
 	TEST_DATABASE_URL=$(TEST_DSN) \
 		go test -race -count=1 ./... -v
 	@$(MAKE) test-db-down
+
+generate:
+	go generate ./...

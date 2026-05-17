@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_calendar/internal/logger"
+	"github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/logger"
 )
 
-// responseWriter — обертка для захвата статуса и размера ответа.
+// responseWriter - обертка для захвата статуса и размера ответа.
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode   int
@@ -30,7 +30,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-// LoggingMiddleware — мидлвара, логирующая запросы в формате:
+// LoggingMiddleware - мидлвара, логирующая запросы в формате:
 // 66.249.65.3 [25/Feb/2020:19:11:24 +0600] GET /hello?q=1 HTTP/1.1 200 30 "Mozilla/5.0".
 func LoggingMiddleware(log *logger.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,11 +81,11 @@ func LoggingMiddleware(log *logger.Logger, next http.Handler) http.Handler {
 func getClientIP(r *http.Request) string {
 	// 1. X-Forwarded-For (стандарт для прокси)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Может быть несколько IP: client, proxy1, proxy2 — берём первый
+		// Может быть несколько IP: client, proxy1, proxy2 - берём первый
 		if ip, _, err := net.SplitHostPort(xff); err == nil {
 			return ip
 		}
-		// Если нет порта — возвращаем как есть (берём первый элемент)
+		// Если нет порта - возвращаем как есть (берём первый элемент)
 		for _, ip := range splitComma(xff) {
 			if ip := trimSpace(ip); ip != "" {
 				return ip
