@@ -1,5 +1,19 @@
-[logger]
-level = "INFO"
+logger:
+  level: info
+  format: text
 
-# TODO
-# ...
+server:
+  host: localhost
+  port: 8888
+
+storage:
+  type: sql  # available: memory | sql
+
+db:
+  host: localhost
+  port: 5539
+  user: intranet
+  password: password
+  dbname: calendar
+  sslmode: disable
+  max_open_conns: 10

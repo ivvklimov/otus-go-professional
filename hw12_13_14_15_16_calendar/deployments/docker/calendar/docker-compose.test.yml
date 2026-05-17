@@ -1,0 +1,25 @@
+version: '3.7'
+
+networks:
+  otus-calendar-test:
+    driver: bridge
+
+services:
+  calendar-postgres-test:
+    container_name: otus_calendar_postgres_test
+    image: postgres:12.2
+    restart: "no"
+    networks:
+      - otus-calendar-test
+    environment:
+      POSTGRES_USER: intranet
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: calendar_test
+      POSTGRES_PORT: 5432
+    ports:
+      - 5540:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intranet -d calendar_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
