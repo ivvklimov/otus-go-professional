@@ -35,3 +35,5 @@ linters-settings:
           - "google.golang.org/grpc/peer"
           - "google.golang.org/protobuf/types/known/emptypb"
           - "google.golang.org/protobuf/types/known/timestamppb"
+          - "github.com/rabbitmq/"
+          - "github.com/rabbitmq/amqp091-go"

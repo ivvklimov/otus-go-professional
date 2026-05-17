@@ -186,3 +186,12 @@ func isConflictError(err error) bool {
 	}
 	return false
 }
+
+// Close закрывает соединение с базой данных.
+// Вызывайте в defer после создания хранилища.
+func (s *Storage) Close() error {
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
+}
