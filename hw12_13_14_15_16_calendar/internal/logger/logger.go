@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Logger — обёртка над slog.
+// Logger - обёртка над slog.
 type Logger struct {
 	*slog.Logger
 }

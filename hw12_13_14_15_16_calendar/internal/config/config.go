@@ -7,6 +7,7 @@ type Config struct {
 	Server  ServerConfig  `yaml:"server"`
 	Storage StorageConfig `yaml:"storage"`
 	DB      DBConfig      `yaml:"db"`
+	GRPC    GRPCConfig    `yaml:"grpc"`
 }
 
 type LoggerConfig struct {
@@ -31,6 +32,10 @@ type DBConfig struct {
 	DBName       string `yaml:"dbname"`
 	SSLMode      string `yaml:"sslmode"`
 	MaxOpenConns int    `yaml:"max_open_conns"`
+}
+
+type GRPCConfig struct {
+	Port string `yaml:"port"`
 }
 
 // DSN возвращает готовую строку подключения для lib/pq.

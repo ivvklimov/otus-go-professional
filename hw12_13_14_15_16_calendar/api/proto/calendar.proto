@@ -1,0 +1,104 @@
+// api/proto/calendar.proto
+syntax = "proto3";
+package calendar;
+
+option go_package = "github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/api/proto;proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ==================== Event ====================
+message Event {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  int64 owner_id = 4;
+  google.protobuf.Timestamp date_start = 5;
+  google.protobuf.Timestamp date_end = 6;
+  google.protobuf.Timestamp notify_at = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// ==================== Requests / Responses ====================
+
+message CreateEventRequest {
+  string title = 1;
+  string description = 2;
+  google.protobuf.Timestamp date_start = 3;
+  google.protobuf.Timestamp date_end = 4;
+  int64 owner_id = 5;
+  google.protobuf.Timestamp notify_at = 6;
+}
+
+message CreateEventResponse {
+  Event event = 1;
+}
+
+message UpdateEventRequest {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  google.protobuf.Timestamp date_start = 4;
+  google.protobuf.Timestamp date_end = 5;
+  int64 owner_id = 6;
+  google.protobuf.Timestamp notify_at = 7;
+}
+
+message UpdateEventResponse {
+  Event event = 1;
+}
+
+message DeleteEventRequest {
+  string id = 1;
+}
+
+message DeleteEventResponse {
+  bool deleted = 1;
+}
+
+message GetEventRequest {
+  string id = 1;
+}
+
+message GetEventResponse {
+  Event event = 1;
+}
+
+// ← УДАЛЕНО: message ListEventsRequest
+
+message ListEventsResponse {
+  repeated Event events = 1;
+  int32 total = 2;
+}
+
+// ==================== Новые запросы (по ТЗ) ====================
+message ListEventsForDayRequest {
+  int64 owner_id = 1;
+  google.protobuf.Timestamp date = 2;
+}
+
+message ListEventsForWeekRequest {
+  int64 owner_id = 1;
+  google.protobuf.Timestamp date = 2;
+}
+
+message ListEventsForMonthRequest {
+  int64 owner_id = 1;
+  google.protobuf.Timestamp date = 2;
+}
+
+// ==================== Service ====================
+service CalendarService {
+  rpc CreateEvent(CreateEventRequest) returns (CreateEventResponse);
+  rpc UpdateEvent(UpdateEventRequest) returns (UpdateEventResponse);
+  rpc DeleteEvent(DeleteEventRequest) returns (DeleteEventResponse);
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+  
+  // ← ЗАМЕНЕНО: вместо ListEvents - три метода по ТЗ
+  rpc ListEventsForDay(ListEventsForDayRequest) returns (ListEventsResponse);
+  rpc ListEventsForWeek(ListEventsForWeekRequest) returns (ListEventsResponse);
+  rpc ListEventsForMonth(ListEventsForMonthRequest) returns (ListEventsResponse);
+  
+  rpc HealthCheck(google.protobuf.Empty) returns (google.protobuf.Empty);
+}

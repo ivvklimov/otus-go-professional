@@ -1,4 +1,4 @@
-.PHONY: build run migrate tidy install-lint lint install-goose-deps migrate-up migrate-down migrate-status tidy test-db-up test-db-down test
+.PHONY: build run migrate tidy install-lint lint install-goose-deps migrate-up migrate-down migrate-status tidy test-db-up test-db-down test generate
 
 # === Переменные для версионирования ===
 GIT_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
@@ -105,3 +105,6 @@ test: test-db-up install-goose-deps
 	TEST_DATABASE_URL=$(TEST_DSN) \
 		go test -race -count=1 ./... -v
 	@$(MAKE) test-db-down
+
+generate:
+	go generate ./...
