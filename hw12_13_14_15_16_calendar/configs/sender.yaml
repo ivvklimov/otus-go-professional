@@ -1,0 +1,16 @@
+rmq_url: "amqp://admin:admin@localhost:5672/"
+queue: "calendar_notifications"
+
+# Настройки БД
+# Совпадают с calendar.yaml
+db:
+  host: "localhost"
+  port: 5539
+  user: "intranet"
+  password: "password"
+  dbname: "calendar"
+  sslmode: "disable"
+  # Настройки пула (опционально, дефолты: 10/5/30m)
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime: 30  # в минутах

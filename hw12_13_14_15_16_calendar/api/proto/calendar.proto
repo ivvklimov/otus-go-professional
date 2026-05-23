@@ -94,8 +94,6 @@ service CalendarService {
   rpc UpdateEvent(UpdateEventRequest) returns (UpdateEventResponse);
   rpc DeleteEvent(DeleteEventRequest) returns (DeleteEventResponse);
   rpc GetEvent(GetEventRequest) returns (GetEventResponse);
-  
-  // ← ЗАМЕНЕНО: вместо ListEvents - три метода по ТЗ
   rpc ListEventsForDay(ListEventsForDayRequest) returns (ListEventsResponse);
   rpc ListEventsForWeek(ListEventsForWeekRequest) returns (ListEventsResponse);
   rpc ListEventsForMonth(ListEventsForMonthRequest) returns (ListEventsResponse);

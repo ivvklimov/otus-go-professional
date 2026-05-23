@@ -165,3 +165,26 @@ func (s *Storage) checkConflict(newEvent storage.Event, excludeID string) error 
 	}
 	return nil
 }
+
+// FetchPendingNotifications - заглушка для memory storage.
+func (s *Storage) FetchPendingNotifications(ctx context.Context, limit int) ([]storage.Notification, error) {
+	// В memory-режиме уведомления не отправляем, возвращаем пустой список.
+	// Для полноценной работы необходимо использовать SQL storage.
+	_ = ctx
+	_ = limit
+	return nil, nil
+}
+
+// MarkNotificationsSent - заглушка.
+func (s *Storage) MarkNotificationsSent(ctx context.Context, eventIDs []string) error {
+	_ = ctx
+	_ = eventIDs
+	return nil
+}
+
+// DeleteOldEvents - заглушка.
+func (s *Storage) DeleteOldEvents(ctx context.Context, olderThan time.Duration) (int64, error) {
+	_ = ctx
+	_ = olderThan
+	return 0, nil
+}

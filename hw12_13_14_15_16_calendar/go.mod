@@ -6,6 +6,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.12.3
+	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.32.0

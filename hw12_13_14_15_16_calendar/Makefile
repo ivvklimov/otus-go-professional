@@ -1,23 +1,31 @@
-.PHONY: build run migrate tidy install-lint lint install-goose-deps migrate-up migrate-down migrate-status tidy test-db-up test-db-down test generate
+.PHONY: build run tidy install-lint lint generate
 
 # === Переменные для версионирования ===
-GIT_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
+RELEASE ?= v0.0.1
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-VERSION    := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.1")
+GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
 
-# Убираем кавычки и префикс -ldflags из переменной, чтобы Make не ломал аргументы
-LDFLAGS := -X main.release=$(VERSION) -X main.buildDate=$(BUILD_DATE) -X main.gitHash=$(GIT_HASH)
+# Пути к переменным в internal/version
+LDFLAGS := -X github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/version.Release=$(RELEASE) \
+           -X github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/version.BuildDate=$(BUILD_DATE) \
+           -X github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/version.GitHash=$(GIT_HASH)
 
-.PHONY: build verify
+# Переменные для бинарников
+BINARY_API        = calendar
+BINARY_SCHEDULER  = calendar_scheduler
+BINARY_SENDER     = calendar_sender
 
 build:
-	@echo "Building calendar service..."	
-	go build -ldflags="$(LDFLAGS)" -o bin/calendar ./cmd/calendar
+	@echo "Building calendar services..."
+	go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY_API) ./cmd/calendar
+	go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY_SCHEDULER) ./cmd/calendar_scheduler
+	go build -ldflags="$(LDFLAGS)" -o bin/$(BINARY_SENDER) ./cmd/calendar_sender
+	@echo "Build complete: 3 binaries in bin/"
 	@./bin/calendar --version
 
 run: build
 	@echo "Starting calendar service..."
-	./bin/calendar --config=configs/config.yaml
+	./bin/calendar --config=configs/calendar.yaml
 
 tidy:
 	go mod tidy
@@ -28,16 +36,13 @@ install-lint-deps:
 lint: install-lint-deps
 	golangci-lint run ./...
 
-GOOSE_VERSION := v3.20.0
-GOOSE_BIN   := $(shell go env GOPATH)/bin/goose
+generate:
+	go generate ./...
 
-install-goose-deps:
-	@if [ ! -f "$(GOOSE_BIN)" ]; then \
-		echo "goose not found, installing $(GOOSE_VERSION)..."; \
-		go install github.com/pressly/goose/v3/cmd/goose@$(GOOSE_VERSION); \
-	fi
 
 # === Migration (main DB) ===
+.PHONY: migrate migrate-up migrate-down migrate-status migrate-redo
+
 # Переменные для подключения к основной БД (можно переопределять через ENV)
 DB_HOST ?= localhost
 DB_PORT ?= 5539
@@ -71,7 +76,23 @@ migrate-status:
 migrate-redo:
 	@$(MAKE) migrate CMD=redo
 
+
+# === GOOSE ===
+.PHONY: install-goose-deps
+
+GOOSE_VERSION := v3.20.0
+GOOSE_BIN   := $(shell go env GOPATH)/bin/goose
+
+install-goose-deps:
+	@if [ ! -f "$(GOOSE_BIN)" ]; then \
+		echo "goose not found, installing $(GOOSE_VERSION)..."; \
+		go install github.com/pressly/goose/v3/cmd/goose@$(GOOSE_VERSION); \
+	fi
+
+
 # === Test DB ===
+.PHONY: test test-db-up test-db-down
+
 # Переменные для тестовой БД (можно переопределять через ENV)
 TEST_DB_HOST ?= localhost
 TEST_DB_PORT ?= 5540
@@ -94,6 +115,7 @@ test-db-up:
 		sleep 1; \
 	done
 	@echo "DB is ready!"
+	@sleep 1
 
 test-db-down:
 	docker compose -f $(TEST_COMPOSE_FILE) down
@@ -106,5 +128,16 @@ test: test-db-up install-goose-deps
 		go test -race -count=1 ./... -v
 	@$(MAKE) test-db-down
 
-generate:
-	go generate ./...
+
+# === Scheduler ===
+.PHONY: run-scheduler
+run-scheduler:
+	@echo "Starting scheduler..."
+	./bin/$(BINARY_SCHEDULER) --config=configs/scheduler.yaml
+
+
+# === Sender ===
+.PHONY: run-sender
+run-sender:
+	@echo "Starting sender..."
+	./bin/$(BINARY_SENDER) --config=configs/sender.yaml
