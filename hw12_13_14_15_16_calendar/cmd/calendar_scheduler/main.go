@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -118,13 +119,31 @@ func main() {
 	log.Info("Shutting down scheduler...")
 }
 
-// applySecrets переопределяет чувствительные настройки из ENV.
+// applySecrets переопределяет настройки из ENV (приоритет над YAML).
 func applySecrets(cfg *SchedulerConfig) {
+	// RabbitMQ
+	if url := os.Getenv("RMQ_URL"); url != "" {
+		cfg.RMQURL = url
+	}
+
+	// Database
+	if host := os.Getenv("DB_HOST"); host != "" {
+		cfg.DB.Host = host
+	}
+	if port := os.Getenv("DB_PORT"); port != "" {
+		cfg.DB.Port, _ = strconv.Atoi(port)
+	}
+	if user := os.Getenv("DB_USER"); user != "" {
+		cfg.DB.User = user
+	}
 	if pass := os.Getenv("DB_PASSWORD"); pass != "" {
 		cfg.DB.Password = pass
 	}
-	if url := os.Getenv("RMQ_URL"); url != "" {
-		cfg.RMQURL = url
+	if name := os.Getenv("DB_NAME"); name != "" {
+		cfg.DB.DBName = name
+	}
+	if ssl := os.Getenv("DB_SSLMODE"); ssl != "" {
+		cfg.DB.SSLMode = ssl
 	}
 }
 

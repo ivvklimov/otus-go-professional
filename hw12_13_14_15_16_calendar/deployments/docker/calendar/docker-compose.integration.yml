@@ -1,0 +1,153 @@
+version: '3.7'
+
+networks:
+  otus-calendar-test:
+    driver: bridge
+
+services:
+  # === INFRASTRUCTURE ===  
+  calendar-postgres-test:
+    container_name: otus_calendar_postgres_test
+    image: postgres:12.2
+    restart: "no"
+    networks:
+      - otus-calendar-test
+    environment:
+      POSTGRES_USER: intranet
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: calendar_test
+    ports:
+      - "5540:5432"
+    volumes:
+      - pg_otus_calendar_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intranet -d calendar_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  rabbitmq-test:
+    image: rabbitmq:3-management
+    container_name: otus_calendar_rabbitmq_test
+    networks:
+      - otus-calendar-test
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # === MIGRATIONS (Goose) ===  
+  migrate-test:
+    image: kukymbr/goose-docker:latest
+    container_name: calendar-migrate-test
+    networks:
+      - otus-calendar-test
+    depends_on:
+      calendar-postgres-test:
+        condition: service_healthy
+    volumes:
+      - ../../../migrations:/migrations
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "postgres://intranet:password@calendar-postgres-test:5432/calendar_test?sslmode=disable"
+    command: ["-dir", "/migrations", "up"]
+    restart: "no"
+
+  # === APPLICATIONS ===
+  calendar-test:
+    build:
+      context: ../../..
+      dockerfile: deployments/docker/calendar/Dockerfile
+      args:
+        RELEASE: test
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        GIT_HASH: ${GIT_HASH:-dev}
+    container_name: otus_calendar_test
+    networks:
+      - otus-calendar-test
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+      rabbitmq-test:
+        condition: service_healthy
+    ports:
+      - "8889:8888"
+      - "50052:50051"
+    environment:
+      DB_HOST: calendar-postgres-test
+      DB_PORT: 5432
+      DB_USER: intranet
+      DB_PASSWORD: password
+      DB_NAME: calendar_test
+      DB_SSLMODE: disable
+      RMQ_URL: "amqp://guest:guest@rabbitmq-test:5672/"
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: 8888
+      GRPC_HOST: "0.0.0.0"
+      GRPC_PORT: 50051
+    restart: "no"
+
+  # Scheduler для тестов — создаёт уведомления в очередь
+  calendar-scheduler-test:
+    build:
+      context: ../../..
+      dockerfile: deployments/docker/calendar/Dockerfile.scheduler
+      args:
+        RELEASE: test
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        GIT_HASH: ${GIT_HASH:-dev}
+    container_name: otus_calendar_scheduler_test
+    networks:
+      - otus-calendar-test
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+      rabbitmq-test:
+        condition: service_healthy
+    environment:
+      DB_HOST: calendar-postgres-test
+      DB_PORT: 5432
+      DB_USER: intranet
+      DB_PASSWORD: password
+      DB_NAME: calendar_test
+      DB_SSLMODE: disable
+      RMQ_URL: "amqp://guest:guest@rabbitmq-test:5672/"
+      POLL_INTERVAL: 3s
+    restart: "no"
+
+  # Sender для тестов - обрабатывает очередь и обновляет статус в БД
+  calendar-sender-test:
+    build:
+      context: ../../..
+      dockerfile: deployments/docker/calendar/Dockerfile.sender
+      args:
+        RELEASE: test
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        GIT_HASH: ${GIT_HASH:-dev}
+    container_name: otus_calendar_sender_test
+    networks:
+      - otus-calendar-test
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+      rabbitmq-test:
+        condition: service_healthy
+    environment:
+      DB_HOST: calendar-postgres-test
+      DB_PORT: 5432
+      DB_USER: intranet
+      DB_PASSWORD: password
+      DB_NAME: calendar_test
+      DB_SSLMODE: disable
+      RMQ_URL: "amqp://guest:guest@rabbitmq-test:5672/"
+    restart: "no"
+
+volumes:
+  pg_otus_calendar_test_data:
