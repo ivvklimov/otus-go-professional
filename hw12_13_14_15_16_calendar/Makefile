@@ -105,7 +105,7 @@ TEST_DB_SSLMODE ?= disable
 TEST_DSN = "host=$(TEST_DB_HOST) port=$(TEST_DB_PORT) user=$(TEST_DB_USER) password=$(TEST_DB_PASSWORD) dbname=$(TEST_DB_NAME) sslmode=$(TEST_DB_SSLMODE)"
 
 # Путь к docker compose для тестов (можно переопределить)
-TEST_COMPOSE_FILE ?= deployments/docker/calendar/docker compose.test.yml
+TEST_COMPOSE_FILE ?= deployments/docker/calendar/docker-compose.test.yml
 TEST_CONTAINER_NAME ?= otus_calendar_postgres_test
 
 test-db-up:
@@ -144,7 +144,7 @@ run-sender:
 
 
 # === Docker Management  ===
-COMPOSE_DEV := deployments/docker/calendar/docker compose.yml
+COMPOSE_DEV := deployments/docker/calendar/docker-compose.yml
 
 .PHONY: up
 up:
@@ -196,7 +196,7 @@ integration-tests:
 .PHONY: integration-tests-build
 integration-tests-build:
 	@echo "Building test environment images..."
-	docker compose -f deployments/docker/calendar/docker compose.integration.yml build
+	docker compose -f deployments/docker/calendar/docker-compose.integration.yml build
 	@echo "Running integration tests..."
 	PROJECT_ROOT=$(PWD) go test -v -tags=integration -timeout=5m -count=1 ./tests/integration/...
 	@echo "Integration tests complete."
@@ -204,5 +204,5 @@ integration-tests-build:
 .PHONY: integration-tests-clean
 integration-tests-clean:
 	@echo "Cleaning integration test environment..."
-	docker compose -f deployments/docker/calendar/docker compose.integration.yml down -v
+	docker compose -f deployments/docker/calendar/docker-compose.integration.yml down -v
 	@echo "Cleaned."
