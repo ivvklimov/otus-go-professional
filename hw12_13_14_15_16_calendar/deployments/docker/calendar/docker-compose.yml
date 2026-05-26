@@ -5,6 +5,7 @@ networks:
     driver: bridge
 
 services:
+  # === INFRASTRUCTURE ===  
   calendar-postgres:
     container_name: otus_calendar_postgres
     image: postgres:12.2
@@ -16,15 +17,21 @@ services:
       POSTGRES_USER: intranet
       POSTGRES_PASSWORD: password
       POSTGRES_DB: calendar
-      POSTGRES_PORT: 5432
     ports:
-      - 5539:5432
+      - "5539:5432"
     volumes:
       - pg_otus_calendar_data:/var/lib/postgresql/calendar
-  
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intranet -d calendar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: otus_calendar_rabbitmq
+    networks:
+      - otus-calendar
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -36,6 +43,105 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # === MIGRATIONS (Goose) ===  
+  migrate:
+    image: kukymbr/goose-docker:latest
+    container_name: otus_calendar_migrate
+    networks:
+      - otus-calendar
+    depends_on:
+      calendar-postgres:
+        condition: service_healthy
+    volumes:
+      - ../../../migrations:/migrations
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: "postgres://intranet:password@calendar-postgres:5432/calendar?sslmode=disable"
+    command: ["-dir", "/migrations", "up"]
+    restart: "no"  # One-shot: отработал и вышел
+
+  # === APPLICATIONS ===
+  calendar:
+    container_name: otus_calendar
+    build:
+      context: ../../..
+      dockerfile: deployments/docker/calendar/Dockerfile
+      args:
+        RELEASE: dev
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        GIT_HASH: ${GIT_HASH:-dev}
+    networks:
+      - otus-calendar
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8888:8888"
+      - "50051:50051"
+    environment:
+      DB_HOST: calendar-postgres
+      DB_PORT: 5432
+      DB_USER: intranet
+      DB_PASSWORD: password
+      DB_NAME: calendar
+      DB_SSLMODE: disable
+      RMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    restart: unless-stopped
+
+  calendar_scheduler:
+    container_name: otus_calendar_scheduler
+    build:
+      context: ../../..
+      dockerfile: deployments/docker/calendar/Dockerfile.scheduler
+      args:
+        RELEASE: dev
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        GIT_HASH: ${GIT_HASH:-dev}
+    networks:
+      - otus-calendar
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DB_HOST: calendar-postgres
+      DB_PORT: 5432
+      DB_USER: intranet
+      DB_PASSWORD: password
+      DB_NAME: calendar
+      DB_SSLMODE: disable
+      RMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    restart: unless-stopped
+
+  calendar_sender:
+    container_name: otus_calendar_sender
+    build:
+      context: ../../..
+      dockerfile: deployments/docker/calendar/Dockerfile.sender
+      args:
+        RELEASE: dev
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        GIT_HASH: ${GIT_HASH:-dev}
+    networks:
+      - otus-calendar
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DB_HOST: calendar-postgres
+      DB_PORT: 5432
+      DB_USER: intranet
+      DB_PASSWORD: password
+      DB_NAME: calendar
+      DB_SSLMODE: disable
+      RMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    restart: unless-stopped
 
 volumes:
   pg_otus_calendar_data:

@@ -104,7 +104,7 @@ TEST_DB_SSLMODE ?= disable
 # Формируем DSN для тестовой БД
 TEST_DSN = "host=$(TEST_DB_HOST) port=$(TEST_DB_PORT) user=$(TEST_DB_USER) password=$(TEST_DB_PASSWORD) dbname=$(TEST_DB_NAME) sslmode=$(TEST_DB_SSLMODE)"
 
-# Путь к docker-compose для тестов (можно переопределить)
+# Путь к docker compose для тестов (можно переопределить)
 TEST_COMPOSE_FILE ?= deployments/docker/calendar/docker-compose.test.yml
 TEST_CONTAINER_NAME ?= otus_calendar_postgres_test
 
@@ -141,3 +141,68 @@ run-scheduler:
 run-sender:
 	@echo "Starting sender..."
 	./bin/$(BINARY_SENDER) --config=configs/sender.yaml
+
+
+# === Docker Management  ===
+COMPOSE_DEV := deployments/docker/calendar/docker-compose.yml
+
+.PHONY: up
+up:
+	@echo "Starting development environment..."
+	docker compose -f $(COMPOSE_DEV) up -d
+	@echo "Services started."
+
+.PHONY: up-build
+up-build:
+	@echo "Rebuilding with real version info..."
+	GIT_HASH=$$(git rev-parse --short HEAD 2>/dev/null || echo "dev") \
+	BUILD_DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+	docker compose -f $(COMPOSE_DEV) up -d --build
+	@echo "Rebuild complete."
+	@echo "Services started."
+
+.PHONY: down
+down:
+	@echo "Stopping containers..."
+	docker compose -f $(COMPOSE_DEV) down
+	@echo "Containers stopped. Data preserved."
+
+.PHONY: clean
+clean:
+	@echo "Full cleanup (containers + volumes)..."
+	docker compose -f $(COMPOSE_DEV) down -v
+	@echo "Everything wiped."
+
+.PHONY: logs
+logs:
+	docker compose -f $(COMPOSE_DEV) logs -f --tail=100 calendar
+
+.PHONY: logs-sender
+logs-sender:
+	docker compose -f $(COMPOSE_DEV) logs -f --tail=100 calendar_sender
+
+.PHONY: logs-scheduler
+logs-scheduler:
+	docker compose -f $(COMPOSE_DEV) logs -f --tail=100 calendar_scheduler
+
+
+# === Integration Tests ===
+.PHONY: integration-tests
+integration-tests:
+	@echo "Running integration tests..."
+	PROJECT_ROOT=$(PWD) go test -v -tags=integration -timeout=5m -count=1 ./tests/integration/...
+	@echo "Integration tests complete."
+
+.PHONY: integration-tests-build
+integration-tests-build:
+	@echo "Building test environment images..."
+	docker compose -f deployments/docker/calendar/docker-compose.integration.yml build
+	@echo "Running integration tests..."
+	PROJECT_ROOT=$(PWD) go test -v -tags=integration -timeout=5m -count=1 ./tests/integration/...
+	@echo "Integration tests complete."
+
+.PHONY: integration-tests-clean
+integration-tests-clean:
+	@echo "Cleaning integration test environment..."
+	docker compose -f deployments/docker/calendar/docker-compose.integration.yml down -v
+	@echo "Cleaned."

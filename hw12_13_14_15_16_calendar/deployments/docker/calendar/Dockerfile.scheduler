@@ -1,0 +1,31 @@
+# Этап сборки
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+ARG RELEASE=dev
+ARG BUILD_DATE
+ARG GIT_HASH
+
+# Собираем только scheduler
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-X github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/version.Release=${RELEASE} \
+    -X github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/version.BuildDate=${BUILD_DATE} \
+    -X github.com/ivvklimov/otus-go-professional/hw12_13_14_15_16_calendar/internal/version.GitHash=${GIT_HASH}" \
+    -o bin/calendar_scheduler ./cmd/calendar_scheduler
+
+# Финальный образ
+FROM alpine:3.20
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /app/bin/calendar_scheduler .
+COPY configs/scheduler.yaml ./config.yaml
+
+ENTRYPOINT ["./calendar_scheduler", "--config=./config.yaml"]
