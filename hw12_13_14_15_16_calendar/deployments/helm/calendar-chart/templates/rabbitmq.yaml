@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-rabbitmq
+  labels:
+    app: calendar
+    release: {{ .Release.Name }}
+    component: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: calendar
+      release: {{ .Release.Name }}
+      component: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: calendar
+        release: {{ .Release.Name }}
+        component: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.rabbitmq.image }}
+          ports:
+            - name: amqp
+              containerPort: {{ .Values.rabbitmq.amqpPort }}
+            - name: mgmt
+              containerPort: {{ .Values.rabbitmq.mgmtPort }}
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: {{ .Values.rabbitmq.user | quote }}
+            - name: RABBITMQ_DEFAULT_PASS
+              value: {{ .Values.rabbitmq.password | quote }}
+          resources: {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-rabbitmq
+spec:
+  type: ClusterIP
+  ports:
+    - name: amqp
+      port: {{ .Values.rabbitmq.amqpPort }}
+      targetPort: amqp
+    - name: mgmt
+      port: {{ .Values.rabbitmq.mgmtPort }}
+      targetPort: mgmt
+  selector:
+    app: calendar
+    release: {{ .Release.Name }}
+    component: rabbitmq

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-sender
+  labels:
+    app: calendar
+    release: {{ .Release.Name }}
+    component: sender
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: calendar
+    release: {{ .Release.Name }}
+    component: sender

@@ -1,0 +1,82 @@
+# Глобальные настройки
+replicaCount: 1
+imagePullPolicy: IfNotPresent
+
+# ===== INFRASTRUCTURE =====
+postgresql:
+  image: postgres:12.2
+  port: 5432
+  user: intranet
+  password: password
+  database: calendar
+  storageSize: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+rabbitmq:
+  image: rabbitmq:3-management
+  amqpPort: 5672
+  mgmtPort: 15672
+  user: admin
+  password: admin
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ===== APPLICATIONS =====
+api:
+  image:
+    repository: zxbit/calendar-api
+    tag: latest
+  servicePort: 8888
+  grpcPort: 50051
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+scheduler:
+  image:
+    repository: zxbit/calendar-scheduler
+    tag: latest
+  env:
+    POLL_INTERVAL: 5s
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+sender:
+  image:
+    repository: zxbit/calendar-sender
+    tag: latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ===== INGRESS =====
+ingress:
+  enabled: true
+  className: ""
+  host: calendar.local
+  path: /
+  pathType: Prefix
