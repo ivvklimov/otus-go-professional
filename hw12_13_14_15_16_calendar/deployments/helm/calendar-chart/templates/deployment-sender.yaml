@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-sender
+  labels:
+    app: calendar
+    release: {{ .Release.Name }}
+    component: sender
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: calendar
+      release: {{ .Release.Name }}
+      component: sender
+  template:
+    metadata:
+      labels:
+        app: calendar
+        release: {{ .Release.Name }}
+        component: sender
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: sender
+          image: "{{ .Values.sender.image.repository }}:{{ .Values.sender.image.tag }}"
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          env:
+            - name: DB_HOST
+              value: "{{ .Release.Name }}-postgres"
+            - name: DB_PORT
+              value: "{{ .Values.postgresql.port }}"
+            - name: DB_USER
+              value: {{ .Values.postgresql.user | quote }}
+            - name: DB_PASSWORD
+              value: {{ .Values.postgresql.password | quote }}
+            - name: DB_NAME
+              value: {{ .Values.postgresql.database | quote }}
+            - name: DB_SSLMODE
+              value: "disable"
+            - name: RMQ_URL
+              value: "amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ .Release.Name }}-rabbitmq:{{ .Values.rabbitmq.amqpPort }}/"
+          resources: {{- toYaml .Values.sender.resources | nindent 12 }}

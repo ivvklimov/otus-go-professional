@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    app: calendar
+    release: {{ .Release.Name }}
+    component: api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: calendar
+      release: {{ .Release.Name }}
+      component: api
+  template:
+    metadata:
+      labels:
+        app: calendar
+        release: {{ .Release.Name }}
+        component: api
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.servicePort }}
+            - name: grpc
+              containerPort: {{ .Values.api.grpcPort }}
+          env:
+            - name: DB_HOST
+              value: "{{ .Release.Name }}-postgres"
+            - name: DB_PORT
+              value: "{{ .Values.postgresql.port }}"
+            - name: DB_USER
+              value: {{ .Values.postgresql.user | quote }}
+            - name: DB_PASSWORD
+              value: {{ .Values.postgresql.password | quote }}
+            - name: DB_NAME
+              value: {{ .Values.postgresql.database | quote }}
+            - name: DB_SSLMODE
+              value: "disable"
+            - name: RMQ_URL
+              value: "amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ .Release.Name }}-rabbitmq:{{ .Values.rabbitmq.amqpPort }}/"
+          readinessProbe: {{- toYaml .Values.api.readinessProbe | nindent 12 }}
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
