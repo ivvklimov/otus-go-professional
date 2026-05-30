@@ -145,6 +145,233 @@ func TestAllStageStop(t *testing.T) {
 		wg.Wait()
 
 		require.Len(t, result, 0)
+	})
+}
 
+func TestPipelineEmptyStages(t *testing.T) {
+	// Проверяем, что пайплайн без стадий просто пропускает данные
+	t.Run("no stages", func(t *testing.T) {
+		in := make(Bi)
+		data := []int{1, 2, 3}
+
+		go func() {
+			for _, v := range data {
+				in <- v
+			}
+			close(in)
+		}()
+
+		result := make([]int, 0, 3)
+		for v := range ExecutePipeline(in, nil) {
+			result = append(result, v.(int))
+		}
+
+		require.Equal(t, []int{1, 2, 3}, result)
+	})
+
+	// Проверяем корректную работу с одной стадией
+	t.Run("single stage", func(t *testing.T) {
+		in := make(Bi)
+		data := []int{1, 2, 3}
+
+		stage := func(in In) Out {
+			out := make(Bi)
+			go func() {
+				defer close(out)
+				for v := range in {
+					out <- v.(int) * 2
+				}
+			}()
+			return out
+		}
+
+		go func() {
+			for _, v := range data {
+				in <- v
+			}
+			close(in)
+		}()
+
+		result := make([]int, 0, 3)
+		for v := range ExecutePipeline(in, nil, stage) {
+			result = append(result, v.(int))
+		}
+
+		require.Equal(t, []int{2, 4, 6}, result)
+	})
+}
+
+func TestPipelineImmediateDone(t *testing.T) {
+	// Проверяем, что при мгновенном закрытии done данные не обрабатываются
+	t.Run("done closed immediately", func(t *testing.T) {
+		in := make(Bi)
+		done := make(Bi)
+
+		// Закрываем done сразу
+		close(done)
+
+		stage := func(in In) Out {
+			out := make(Bi)
+			go func() {
+				defer close(out)
+				for v := range in {
+					out <- v.(int) * 2
+				}
+			}()
+			return out
+		}
+
+		// Запускаем горутину для отправки данных
+		go func() {
+			in <- 42
+			close(in)
+		}()
+
+		// Читаем результат
+		result := make([]int, 0)
+		for v := range ExecutePipeline(in, done, stage) {
+			result = append(result, v.(int))
+		}
+
+		// Главное - не должно быть результатов
+		require.Empty(t, result,
+			"Should not get any results when done channel is closed immediately")
+	})
+
+	// Проверяем прерывание до начала обработки
+	t.Run("done closed before sending data", func(t *testing.T) {
+		in := make(Bi)
+		done := make(Bi)
+
+		// Закрываем done через короткое время
+		go func() {
+			time.Sleep(time.Millisecond * 10)
+			close(done)
+		}()
+
+		// Ждем немного перед отправкой данных
+		go func() {
+			time.Sleep(time.Millisecond * 50)
+			in <- 1
+			in <- 2
+			close(in)
+		}()
+
+		stage := func(in In) Out {
+			out := make(Bi)
+			go func() {
+				defer close(out)
+				for v := range in {
+					out <- v.(int) * 2
+				}
+			}()
+			return out
+		}
+
+		result := make([]int, 0)
+		for v := range ExecutePipeline(in, done, stage) {
+			result = append(result, v.(int))
+		}
+
+		// Не должно быть результатов, так как done закрыт до обработки
+		require.Empty(t, result)
+	})
+}
+
+func TestPipelineLargeVolume(t *testing.T) {
+	// Проверяем производительность и корректность при большом объеме данных
+	t.Run("process 1000 elements", func(t *testing.T) {
+		in := make(Bi)
+		const numElements = 1000
+
+		// Простая стадия - инкремент
+		stage := func(in In) Out {
+			out := make(Bi)
+			go func() {
+				defer close(out)
+				for v := range in {
+					out <- v.(int) + 1
+				}
+			}()
+			return out
+		}
+
+		// Отправляем данные
+		go func() {
+			for i := 0; i < numElements; i++ {
+				in <- i
+			}
+			close(in)
+		}()
+
+		// Замеряем время
+		start := time.Now()
+		result := make([]int, 0, numElements)
+		for v := range ExecutePipeline(in, nil, stage, stage, stage) { // 3 стадии
+			result = append(result, v.(int))
+		}
+		elapsed := time.Since(start)
+
+		// Проверяем результаты
+		require.Len(t, result, numElements)
+		// Каждый элемент прошел через 3 стадии +1
+		for i := 0; i < numElements; i++ {
+			require.Equal(t, i+3, result[i])
+		}
+
+		// Проверяем что выполнение было конкурентным
+		// Последовательное выполнение: 1000 * 3 стадии = должно быть быстро
+		require.Less(t, elapsed, time.Second)
+	})
+
+	// Проверяем корректное прерывание в середине обработки
+	t.Run("with done signal in the middle", func(t *testing.T) {
+		in := make(Bi)
+		done := make(Bi)
+		const numElements = 500
+
+		var mu sync.Mutex
+		processedCount := 0
+		stage := func(in In) Out {
+			out := make(Bi)
+			go func() {
+				defer close(out)
+				for v := range in {
+					time.Sleep(time.Microsecond * 10)
+					mu.Lock()
+					processedCount++
+					mu.Unlock()
+					out <- v
+				}
+			}()
+			return out
+		}
+
+		// Отправляем данные
+		go func() {
+			for i := 0; i < numElements; i++ {
+				in <- i
+			}
+			close(in)
+		}()
+
+		// Закрываем done после обработки части данных
+		go func() {
+			time.Sleep(time.Millisecond * 20)
+			close(done)
+		}()
+
+		result := make([]int, 0)
+		for v := range ExecutePipeline(in, done, stage, stage) {
+			result = append(result, v.(int))
+		}
+
+		// Должны обработаться только некоторые элементы
+		mu.Lock()
+		finalCount := processedCount
+		mu.Unlock()
+
+		require.Less(t, len(result), numElements)
+		require.Less(t, finalCount, numElements*2) // 2 стадии
 	})
 }
