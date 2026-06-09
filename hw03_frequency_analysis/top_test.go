@@ -7,7 +7,7 @@ import (
 )
 
 // Change to true if needed.
-var taskWithAsteriskIsCompleted = false
+var taskWithAsteriskIsCompleted = true
 
 var text = `Как видите, он  спускается  по  лестнице  вслед  за  своим
 	другом   Кристофером   Робином,   головой   вниз,  пересчитывая
@@ -62,7 +62,7 @@ func TestTop10(t *testing.T) {
 				"кристофер", // 4
 				"не",        // 4
 			}
-			require.Equal(t, expected, Top10(text))
+			require.Equal(t, expected, Top10Clean(text))
 		} else {
 			expected := []string{
 				"он",        // 8
@@ -149,7 +149,7 @@ func TestTop10Clean(t *testing.T) {
 			expected: []string{"dog"},
 		},
 		{
-			name:     "remove punctuation",
+			name:     "remove punctuation edges",
 			input:    "hello! hello? hello. 'hello' \"hello\"",
 			expected: []string{"hello"},
 		},
@@ -159,19 +159,39 @@ func TestTop10Clean(t *testing.T) {
 			expected: []string{"какой-то", "какойто"},
 		},
 		{
-			name:     "only punctuation",
+			name:     "only single dash ignored",
 			input:    "- ! ? .",
 			expected: []string{},
 		},
 		{
-			name:     "multiple dashes",
+			name:     "multiple dashes kept as word",
 			input:    "--hello-- ---world---",
 			expected: []string{"hello", "world"},
 		},
 		{
-			name:     "combined",
+			name:     "long dashes frequency sort",
+			input:    "-- ------- --- - --- --- -- --- -- -",
+			expected: []string{"---", "--", "-------"},
+		},
+		{
+			name:     "combined cleaning",
 			input:    "Hello, hello! HELLO? 'hello' \"HELLO\" --hello--",
 			expected: []string{"hello"},
+		},
+		{
+			name:     "unicode chinese characters",
+			input:    "世, 世! 世界! 世界 世界? 世",
+			expected: []string{"世", "世界"},
+		},
+		{
+			name:     "mixed unicode and punctuation",
+			input:    "...Привет... привет! ПРИВЕТ.",
+			expected: []string{"привет"},
+		},
+		{
+			name:     "complex punctuation edges",
+			input:    "!!!Word... ...Word!!! Word",
+			expected: []string{"word"},
 		},
 	}
 
