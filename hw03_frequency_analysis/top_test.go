@@ -7,7 +7,7 @@ import (
 )
 
 // Change to true if needed.
-var taskWithAsteriskIsCompleted = false
+var taskWithAsteriskIsCompleted = true
 
 var text = `Как видите, он  спускается  по  лестнице  вслед  за  своим
 	другом   Кристофером   Робином,   головой   вниз,  пересчитывая
@@ -62,7 +62,7 @@ func TestTop10(t *testing.T) {
 				"кристофер", // 4
 				"не",        // 4
 			}
-			require.Equal(t, expected, Top10(text))
+			require.Equal(t, expected, Top10Clean(text))
 		} else {
 			expected := []string{
 				"он",        // 8
@@ -79,4 +79,136 @@ func TestTop10(t *testing.T) {
 			require.Equal(t, expected, Top10(text))
 		}
 	})
+}
+
+func TestTop10Custom(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: []string{},
+		},
+		{
+			name:     "single word",
+			input:    "hello",
+			expected: []string{"hello"},
+		},
+		{
+			name:     "example from assignment",
+			input:    "cat and dog, one dog,two cats and one man",
+			expected: []string{"and", "one", "cat", "cats", "dog,", "dog,two", "man"},
+		},
+		{
+			name:     "multiple same frequency",
+			input:    "b b b a a a c c c d e f g h i j k l m n o p",
+			expected: []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"},
+		},
+		{
+			name:     "case sensitive",
+			input:    "Dog dog DOG",
+			expected: []string{"DOG", "Dog", "dog"},
+		},
+		{
+			name:     "with punctuation",
+			input:    "hello! hello? hello. 'hello' \"hello\"",
+			expected: []string{"\"hello\"", "'hello'", "hello!", "hello.", "hello?"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Top10(tt.input)
+			if len(result) != len(tt.expected) {
+				t.Errorf("expected %d words, got %d", len(tt.expected), len(result))
+			}
+			for i, word := range tt.expected {
+				if i >= len(result) {
+					break
+				}
+				if result[i] != word {
+					t.Errorf("word[%d]: expected %q, got %q", i, word, result[i])
+				}
+			}
+		})
+	}
+}
+
+func TestTop10Clean(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "case insensitive",
+			input:    "Dog dog DOG",
+			expected: []string{"dog"},
+		},
+		{
+			name:     "remove punctuation edges",
+			input:    "hello! hello? hello. 'hello' \"hello\"",
+			expected: []string{"hello"},
+		},
+		{
+			name:     "dash in middle remains",
+			input:    "какой-то какойто",
+			expected: []string{"какой-то", "какойто"},
+		},
+		{
+			name:     "only single dash ignored",
+			input:    "- ! ? .",
+			expected: []string{},
+		},
+		{
+			name:     "multiple dashes kept as word",
+			input:    "--hello-- ---world---",
+			expected: []string{"hello", "world"},
+		},
+		{
+			name:     "long dashes frequency sort",
+			input:    "-- ------- --- - --- --- -- --- -- -",
+			expected: []string{"---", "--", "-------"},
+		},
+		{
+			name:     "combined cleaning",
+			input:    "Hello, hello! HELLO? 'hello' \"HELLO\" --hello--",
+			expected: []string{"hello"},
+		},
+		{
+			name:     "unicode chinese characters",
+			input:    "世, 世! 世界! 世界 世界? 世",
+			expected: []string{"世", "世界"},
+		},
+		{
+			name:     "mixed unicode and punctuation",
+			input:    "...Привет... привет! ПРИВЕТ.",
+			expected: []string{"привет"},
+		},
+		{
+			name:     "complex punctuation edges",
+			input:    "!!!Word... ...Word!!! Word",
+			expected: []string{"word"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Top10Clean(tt.input)
+			if len(result) != len(tt.expected) {
+				t.Errorf("expected %d words, got %d: %v", len(tt.expected), len(result), result)
+			}
+			for i, word := range tt.expected {
+				if i >= len(result) {
+					break
+				}
+				if result[i] != word {
+					t.Errorf("word[%d]: expected %q, got %q", i, word, result[i])
+				}
+			}
+		})
+	}
 }
